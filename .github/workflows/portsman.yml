@@ -112,7 +112,7 @@ jobs:
         run: |
           mkdir -p build_assets
           go build -v -o build_assets/portsman -trimpath -ldflags "-s -w -buildid=" 
-          cp -r keys/ LICENSE README.md build_assets/
+          cp -r LICENSE README.md build_assets/
 
       - name: Rename Windows portsman
         if: matrix.goos == 'windows'
