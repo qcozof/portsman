@@ -1,0 +1,8 @@
+portsman v0.1
+
+Provide a simple http service to check ports are open.
+
+https://github.com/qcozof/portsman
+
+------------------------------------------------------
+
