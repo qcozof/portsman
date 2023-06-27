@@ -12,6 +12,7 @@ Provide a simple http service to check ports are open.
 ```shell
 ./portsman --ports 9090,9091,9092
 ```
+
 + ### Specify domain
 ```shell
 ./portsman --ports 9090 --domain sample.com
@@ -22,7 +23,12 @@ Provide a simple http service to check ports are open.
 ./portsman --ports 9090,9091,9092 --webDir /path/to
 ``````
 
-+ ### Specify ssl key will enable ssl
++ ### Enable ssl and use default ssl key and cert file
+```shell
+./portsman --ports 9090,9091,9092 --enableSsl true
+`````````
+
++ ### Specify ssl key and cert file will enable ssl automatically
 ```shell
 ./portsman --ports 9090,9091,9092 --certFile keys/fullchain.cer --keyFile keys/sample.com.key
 ```
