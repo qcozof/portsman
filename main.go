@@ -6,6 +6,7 @@
 package main
 
 import (
+	"crypto/tls"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -21,23 +22,20 @@ import (
 var versionData string
 
 //go:embed keys/fullchain.cer
-var sslCertStr []byte
+var btSslCert []byte
 
 //go:embed keys/sample.com.key
-var sslKeyStr []byte
+var btSslKey []byte
 
 const (
 	defaultPauseSeconds = 30
-	defaultCertFilePath = "keys/fullchain.cer"
-	defaultKeyFilePath  = "keys/sample.com.key"
 )
 
 var err error
 var (
-	hostUtils      utils.HostUtils
-	commandUtils   utils.CommandUtils
-	fileUtils      utils.FileUtils
-	directoryUtils utils.DirectoryUtils
+	hostUtils    utils.HostUtils
+	commandUtils utils.CommandUtils
+	fileUtils    utils.FileUtils
 )
 
 var (
@@ -54,10 +52,10 @@ func main() {
 	)
 	fmt.Printf(versionData)
 
-	checkAndGenerateSlFile()
 	flag.StringVar(&domain, "domain", "", "--domain sample.com")
 	flag.StringVar(&ports, "ports", "9090", "--ports 9090,9091")
 	flag.StringVar(&webDir, "webDir", "./", "--webDir /path/to")
+	flag.BoolVar(&enableSsl, "enableSsl", false, "--enableSsl true")
 	flag.StringVar(&certFile, "certFile", "", "--certFile /path/to/fullchain.cer")
 	flag.StringVar(&keyFile, "keyFile", "", "--keyFile /path/to/sample.com.key")
 	flag.Parse()
@@ -71,8 +69,19 @@ func main() {
 		ipOrDomain = domain
 	}
 
-	if certFile != "" {
+	if len(certFile) > 0 {
 		enableSsl = true
+		btSslCert, err = os.ReadFile(certFile)
+		if err != nil {
+			msg := fmt.Sprintf(`os.ReadFile [%s] . %v `, certFile, err)
+			commandUtils.PauseThenExit(defaultPauseSeconds, msg)
+		}
+
+		btSslKey, err = os.ReadFile(keyFile)
+		if err != nil {
+			msg := fmt.Sprintf(`os.ReadFile [%s] . %v `, keyFile, err)
+			commandUtils.PauseThenExit(defaultPauseSeconds, msg)
+		}
 	}
 
 	http.Handle("/", http.FileServer(http.Dir("./")))
@@ -80,11 +89,14 @@ func main() {
 	http.HandleFunc("/keys/", keys)
 
 	if !fileUtils.Exists(webDir) {
-		msg := fmt.Sprintf("%s does not exist", webDir)
+		msg := fmt.Sprintf("webDir:%s does not exist", webDir)
 		commandUtils.PauseThenExit(defaultPauseSeconds, msg)
 	}
 
 	appName := filepath.Base(os.Args[0])
+	fmt.Printf(`Run "%s --help" to show help.`, appName)
+	fmt.Printf("\nWeb directory:%s\n\n", webDir)
+
 	for _, p := range strings.Split(ports, ",") {
 		port, err := strconv.Atoi(p)
 		if err != nil {
@@ -97,12 +109,9 @@ func main() {
 			commandUtils.PauseThenExit(defaultPauseSeconds, msg)
 		}
 
-		fmt.Printf(`Run "%s --help" to show help.`, appName)
-		fmt.Printf("\nWeb directory:%s\n\n", webDir)
-
 		if enableSsl {
 			protocol = "https://"
-			go serveTLS(port, certFile, keyFile)
+			go serveTLS(port)
 		} else {
 			protocol = "http://"
 			go serve(port)
@@ -120,10 +129,24 @@ func serve(port int) {
 	}
 }
 
-func serveTLS(port int, certFile, keyFile string) {
+func serveTLS(port int) {
 	addr := fmt.Sprintf(":%d", port)
+	cert, err := tls.X509KeyPair(btSslCert, btSslKey)
+	if err != nil {
+		panic(err)
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	server := http.Server{
+		TLSConfig: tlsConfig,
+		Addr:      addr,
+	}
+
 	fmt.Printf("run at: %s%s%s\n", protocol, ipOrDomain, addr)
-	if err := http.ListenAndServeTLS(addr, certFile, keyFile, nil); err != nil {
+	if err := server.ListenAndServeTLS("", ""); err != nil {
 		panic(err)
 	}
 }
@@ -134,25 +157,4 @@ func keys(w http.ResponseWriter, r *http.Request) {
 
 func portsman(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("forbidden"))
-}
-
-func checkAndGenerateSlFile() {
-	const keysDir = "keys/"
-	const perm = 0600
-	if exists, _ := directoryUtils.PathExists(keysDir); !exists {
-		if err := directoryUtils.CreateDir(keysDir); err != nil {
-			fmt.Println("CreateDir", keysDir, err)
-			return
-		}
-
-		if err := fileUtils.Write(defaultCertFilePath, sslCertStr, perm); err != nil {
-			fmt.Println("Write", defaultCertFilePath, err)
-			return
-		}
-
-		if err := fileUtils.Write(defaultKeyFilePath, sslKeyStr, perm); err != nil {
-			fmt.Println("Write", defaultKeyFilePath, err)
-			return
-		}
-	}
 }
