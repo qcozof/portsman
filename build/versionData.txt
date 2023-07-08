@@ -1,4 +1,4 @@
-portsman v0.2.0
+portsman ${version} 
 
 Provide a simple http service to check ports are open.
 

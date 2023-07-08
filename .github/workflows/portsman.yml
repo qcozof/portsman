@@ -108,9 +108,14 @@ jobs:
       - name: Get project dependencies
         run: go mod download
 
+      - name: Get Tag Name
+        id: tag
+        run: echo "::set-output name=tag_name::$(git describe --tags --abbrev=0)"
+
       - name: Build portsman
         run: |
           mkdir -p build_assets
+          sed -i 's/${version}/${{ steps.tag.outputs.tag_name }}/' build/versionData.txt
           go build -v -o build_assets/portsman -trimpath -ldflags "-s -w -buildid=" 
           cp -r LICENSE README.md build_assets/
 
@@ -158,3 +163,4 @@ jobs:
           file_glob: true
           file: ./portsman-${{ steps.get_filename.outputs.ASSET_NAME }}.zip*
           tag: ${{ github.ref }}
+
